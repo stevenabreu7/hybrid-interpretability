@@ -1,0 +1,12 @@
+torch
+sentencepiece
+tiktoken
+numpy
+anthropic
+transformers
+dotenv
+pandas
+seaborn
+matplotlib
+kagglehub
+git+https://github.com/stevenabreu7/recurrentgemma.git@dejavu#egg=recurrentgemma

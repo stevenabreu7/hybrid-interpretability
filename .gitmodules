@@ -1,0 +1,7 @@
+[submodule "NIAH"]
+	path = NIAH
+	url = https://github.com/z4nix/LongAlign.git
+[submodule "recurrentgemma"]
+	path = recurrentgemma
+	url = https://github.com/stevenabreu7/recurrentgemma.git
+	branch = dejavu

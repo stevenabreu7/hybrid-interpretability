@@ -1,0 +1,12 @@
+[project]
+name = "hybrid-interpretability"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "jupyter>=1.1.1",
+    "kagglehub>=0.3.12",
+    "sentencepiece>=0.2.0",
+    "torch>=2.7.0",
+]
