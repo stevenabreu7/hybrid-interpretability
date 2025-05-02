@@ -1,140 +1,124 @@
-# ! git clone https://github.com/stevenabreu7/hybrid-interpretability
-# ! cd hybrid-interpretability
-# ! bash install.sh
 import kagglehub
 import os
-import pathlib
-import torch
-import sentencepiece as spm
-from recurrentgemma import torch as recurrentgemma
+from pathlib import Path
 import subprocess
-import shutil
+import yaml
+
+# directory for NIAH scripts
+NIAH_DIR = Path("NIAH/Needle_test")
+
+# the config file inside the NIAH directory
+CONF_FILE = "config.yaml"
 
 
-def create_zip_archive(source_dir, output_filename):
+def run_command(command):
     """
-    Create a zip archive of the specified directory
+    Runs a command in a subprocess and prints its output (stdout and stderr) as it is generated.
+
+    Args:
+    - command (list): The command to execute, provided as a list of strings (e.g., ["ping", "google.com"]).
     """
-    print(f"Creating archive {output_filename} from {source_dir}")
-    shutil.make_archive(
-        output_filename.replace('.zip', ''),  # remove .zip extension for make_archive
-        'zip',
-        os.path.dirname(source_dir),
-        os.path.basename(source_dir)
+    env = os.environ.copy()
+    # Start the subprocess
+    process = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        env=env,
+        text=True,
     )
-    print(f"Archive created: {output_filename}")
+
+    # Continuously read and print from stdout and stderr
+    try:
+        while True:
+            # Read a line from stdout
+            output = process.stdout.readline()
+            if output:
+                print(f"stdout: {output.strip()}")
+
+            # Check if the process has finished and there's no more output
+            if output == "" and process.poll() is not None:
+                break
+
+    finally:
+        # Close the pipes and wait for the process to finish
+        process.stdout.close()
+        process.wait()
 
 
-def run_niah():
+def run_niah(prompt=True, pred=True, eval=True, vis=True):
     """
     Run the NIAH (Needle In A Haystack) workflow
+
+     Args:
+    - prompt (bool): If the prompt script should be run.
+    - pred (bool): If the pred script should be run.
+    - eval (bool): If the eval script should be run.
+    - vis (bool): If the vis script should be run.
     """
     print("Running NIAH workflow...")
-    
-    # Change to project directory if needed
-    # os.chdir('/path/to/your/project')
-    
-    # Install dependencies
-    subprocess.run(["pip", "install", "flash-attn", "--no-build-isolation"], check=True)
-    subprocess.run(["pip", "install", "python-dotenv", "tiktoken", "anthropic"], check=True)
-    
-    # Set environment variables
-    # Replace with your own HF token or load from .env file
-    os.environ['HF_TOKEN'] = 'your_huggingface_token'
-    
-    # Run NIAH scripts
-    print("Running prompt.py...")
-    subprocess.run(["python", "NIAH/Needle_test/prompt.py"], check=True)
-    
-    print("Running predictions...")
+
+    # Use your own HF_token here or set it as an environment variable
+    if not os.environ.get("HF_TOKEN") and not os.environ.get(
+        "HUGGINGFACE_TOKEN"
+    ):
+        print(
+            "No token found in environment variables, using predefined token..."
+        )
+        os.environ["HF_TOKEN"] = "your_huggingface_token"
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-    subprocess.run(["python", "NIAH/Needle_test/pred.py"], check=True)
-    
-    print("Running evaluation...")
-    # Create environment variables
-    my_env = os.environ.copy()
-    my_env["CUDA_VISIBLE_DEVICES"] = "0"
-    
-    # Set up Huggingface cache
-    hf_token = os.environ.get('HF_TOKEN')
-    custom_args = {"token": hf_token, "cache_dir": "./.cache"}  # speeds up loading
-    
-    # Run evaluation
-    subprocess.run(["python", "NIAH/Needle_test/eval.py"], env=my_env, check=True)
-    
-    # Run visualization
-    subprocess.run(["python", "LongAlign/Needle_test/vis.py"], check=True)
-    
-    # Create archive files
-    create_zip_archive("LongAlign/Needle_test/prompts", "prompt.zip")
-    create_zip_archive("LongAlign/Needle_test/pred_K1", "pred_K1.zip")
-    create_zip_archive("LongAlign/Needle_test/pred_K2", "pred_K2.zip")
-    create_zip_archive("LongAlign/Needle_test/results", "results.zip")
-    
+
+    # Run NIAH scripts
+    if prompt:
+        print("Running prompt.py...")
+        run_command(["python", NIAH_DIR / "prompt.py"])
+
+    if pred:
+        print("Running predictions...")
+        run_command(["python", NIAH_DIR / "pred.py"])
+
+    if eval:
+        print("Running evaluation...")
+        run_command(["python", NIAH_DIR / "eval.py"])
+
+    if vis:
+        print("Running visualisation...")
+        run_command(["python", NIAH_DIR / "vis.py"])
+
     print("NIAH workflow completed")
 
 
 def main():
-    # Set device
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    # MAKE SURE TO AUTHENTICATE KAGGLE BEFORE
+    # https://github.com/Kaggle/kagglehub?tab=readme-ov-file#authenticate
 
-    # Login to Kaggle
-    kagglehub.login()
-
-    # Import model weights
-    google_recurrentgemma_pytorch_2b_it_1_path = kagglehub.model_download('google/recurrentgemma/PyTorch/2b/1')
-    
-    # Set model paths
-    VARIANT = '2b'
-    weights_dir = pathlib.Path(f"{google_recurrentgemma_pytorch_2b_it_1_path}")
-    ckpt_path = weights_dir / f'{VARIANT}.pt'
-    vocab_path = weights_dir / 'tokenizer.model'
-    preset = recurrentgemma.Preset.RECURRENT_GEMMA_2B_V1 if '2b' in VARIANT else recurrentgemma.Preset.RECURRENT_GEMMA_9B_V1
-
-    # Load parameters
-    params = torch.load(str(ckpt_path))
-    params = {k : v.to(device=device) for k, v in params.items()}
-
-    # Initialize model
-    model_config = recurrentgemma.GriffinConfig.from_torch_params(
-        params,
-        preset=preset,
+    # Download model
+    print("Downloading model...")
+    variant = "2b"  # 9b also available
+    model_dir = Path(
+        kagglehub.model_download(f"google/recurrentgemma/PyTorch/{variant}")
     )
-    model = recurrentgemma.Griffin(model_config, device=device, dtype=torch.bfloat16)
-    model.load_state_dict(params)
+    model_path = model_dir / f"{variant}.pt"
+    tokenizer_path = model_dir / "tokenizer.model"
+    print(model_path)
+    print(type(str(model_path)))
 
-    # Enable sparsification
-    model.enable_sparsification(k = 3, metric = "entropy", prefill = False)
+    print("Updating config...")
+    # set path in config
+    conf_path = NIAH_DIR / CONF_FILE
+    print(f"conf_path: {conf_path}")
+    with open(conf_path, "r") as f:
+        config = yaml.safe_load(f)
+    if config:
+        print(config)
+    else:
+        print("No config found!")
 
-    # Load vocabulary
-    vocab = spm.SentencePieceProcessor()
-    vocab.Load(str(vocab_path))
+    config["pred"]["model_path"] = str(model_path)
+    config["pred"]["tokenizer_path"] = str(tokenizer_path)
+    dump = yaml.dump(config)
 
-    # Initialize sampler
-    sampler = recurrentgemma.Sampler(model=model, vocab=vocab)
-
-    # Generate text
-    input_batch = ["I once had a girl, or should I say, she once had  "]
-    
-    # 30 generation steps
-    out_data = sampler(input_strings=input_batch, total_generation_steps=30)
-
-    for input_string, out_string in zip(input_batch, out_data.text):
-        print(f"Prompt:\n{input_string}\nOutput:\n{out_string}")
-        print(10*'#')
-
-    # Test attention sparsification
-    input_batch = ["I once had a girl, or should I say, she once had "]
-
-    model.disable_attention_manipulation()
-    model.enable_sparsification(k = 3, metric = "entropy", prefill = False)
-
-    # 30 generation steps
-    out_data = sampler(input_strings=input_batch, total_generation_steps=30)
-
-    for input_string, out_string in zip(input_batch, out_data.text):
-        print(f"Prompt:\n{input_string}\nOutput:\n{out_string}")
-        print(10*'#')
+    with open(conf_path, "w") as f:
+        f.write(dump)
 
     # Run NIAH workflow
     run_niah()
