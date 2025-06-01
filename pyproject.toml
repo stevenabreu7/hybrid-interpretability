@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "accelerate>=1.7.0",
     "anthropic>=0.50.0",
     "dotenv>=0.9.9",
     "jupyter>=1.1.1",
@@ -22,4 +23,4 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-recurrentgemma = { git = "https://github.com/stevenabreu7/recurrentgemma.git", rev = "dejavu" }
+recurrentgemma = { path = "recurrentgemma", editable = true }
