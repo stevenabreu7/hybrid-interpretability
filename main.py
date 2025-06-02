@@ -1,5 +1,6 @@
 import os
 import subprocess
+from collections import OrderedDict
 from pathlib import Path
 
 import kagglehub
@@ -90,7 +91,7 @@ def run_niah(prompt=True, pred=True, eval=True, vis=True):
 
 
 def main():
-    # MAKE SURE TO AUTHENTICATE KAGGLE BEFORE
+    # MAKE SURE TO AUTHENTICATE KAGGLE BEFORE running this script
     # https://github.com/Kaggle/kagglehub?tab=readme-ov-file#authenticate
 
     if not os.environ.get("KAGGLE_KEY") or not os.environ.get("KAGGLE_USERNAME"):
@@ -100,7 +101,7 @@ def main():
 
     # Download model
     print("Downloading model...")
-    variant = "9b"  # 2b/9b available
+    variant = "2b"  # 2b/9b available
     model_dir = Path(kagglehub.model_download(f"google/recurrentgemma/PyTorch/{variant}"))
     model_path = model_dir / f"{variant}.pt"
     tokenizer_path = model_dir / "tokenizer.model"
@@ -111,7 +112,7 @@ def main():
     conf_path = NIAH_DIR / CONF_FILE
     print(f"conf_path: {conf_path}")
     with open(conf_path, "r") as f:
-        config = yaml.safe_load(f)
+        config = OrderedDict(yaml.safe_load(f))
     if config:
         print(config)
     else:
@@ -125,7 +126,7 @@ def main():
         f.write(dump)
 
     # Run NIAH workflow
-    run_niah(prompt=False)
+    run_niah(prompt=False, pred=False, eval=False, vis=False)
 
 
 if __name__ == "__main__":
